@@ -99,6 +99,8 @@
     <div class="panel">
       <h2 id="form-title">Añadir producto</h2>
       <p class="muted" id="storage-status"></p>
+      <label>🏷️ Código del producto nuevo (con la pistola)</label>
+      <input id="inv-scan" type="text" placeholder="Haz clic aquí y escanea el código con la pistola…" autocomplete="off" style="margin-bottom:16px">
       <form id="prod-form" novalidate>
         <input type="hidden" id="f-id">
         <div class="grid">
@@ -565,37 +567,67 @@ function openCamScan() {
   });
 }
 
-/* La pistola escribe muy rápido y termina con Enter: se captura en Cobrar (añade a la venta) y en Inventario (llena el Código del formulario) */
-var scanBuf = "", scanLast = 0;
-document.addEventListener("keydown", function (ev) {
-  var tag = (ev.target && ev.target.tagName) || "";
-  if (tag === "INPUT" || tag === "SELECT" || tag === "TEXTAREA") return;
-  var now = Date.now();
-  if (now - scanLast > 120) scanBuf = "";
-  scanLast = now;
-  if (ev.key === "Enter") {
-    if (scanBuf.length >= 4) {
-      ev.preventDefault();
-      if (!document.getElementById("view-pos").classList.contains("hidden")) addByCode(scanBuf);
-      else if (!document.getElementById("view-inv").classList.contains("hidden")) fillCodeFromScan(scanBuf);
-    }
-    scanBuf = ""; return;
-  }
-  if (ev.key && ev.key.length === 1) scanBuf += ev.key;
-});
-/* Si el cursor está en el campo Código, el Enter de la pistola NO envía el formulario: pasa al Nombre */
-document.getElementById("f-code").addEventListener("keydown", function (ev) {
-  if (ev.key === "Enter") { ev.preventDefault(); document.getElementById("f-name").focus(); }
-});
+/* Captura global de la pistola: detecta la ráfaga de teclas rápidas esté el cursor donde esté.
+   Al registrar: llena el Código del formulario. Al cobrar: añade el producto a la venta. */
 function fillCodeFromScan(code) {
   code = String(code || "").trim(); if (!code) return;
   var existing = null;
   state.products.forEach(function (p) { if ((p.code || "").trim().toLowerCase() === code.toLowerCase()) existing = p; });
   if (existing) { editProd(existing.id); toast("Ese código ya existe: abrí «" + existing.name + "» para editar"); return; }
   document.getElementById("f-code").value = code;
+  document.getElementById("inv-scan").value = "";
   toast("🏷️ Código escaneado: " + code + " — completa nombre, precio y stock");
   document.getElementById("f-name").focus();
 }
+document.getElementById("inv-scan").addEventListener("keydown", function (ev) {
+  if (ev.key === "Enter") { ev.preventDefault(); if (this.value.trim()) fillCodeFromScan(this.value); }
+});
+/* Si el cursor está en el campo Código, el Enter de la pistola NO envía el formulario: pasa al Nombre */
+document.getElementById("f-code").addEventListener("keydown", function (ev) {
+  if (ev.key === "Enter") { ev.preventDefault(); document.getElementById("f-name").focus(); }
+});
+var burst = null;
+function burstMedianGap(b) {
+  var gaps = [];
+  for (var i = 1; i < b.times.length; i++) gaps.push(b.times[i] - b.times[i - 1]);
+  gaps.sort(function (a, c) { return a - c; });
+  return gaps.length ? gaps[Math.floor(gaps.length / 2)] : 999;
+}
+function commitScan(b) {
+  var code = b.chars.join("");
+  if (b.target && b.target.id !== "f-code" && b.target.id !== "inv-scan" && b.target.id !== "scan-input") {
+    b.target.value = b.before; /* deshace lo que la pistola escribió en el campo equivocado */
+    b.target.dispatchEvent(new Event("input", { bubbles: true }));
+  }
+  if (b.target && b.target.id === "inv-scan") b.target.value = "";
+  if (b.target && b.target.id === "scan-input") b.target.value = "";
+  if (!document.getElementById("view-pos").classList.contains("hidden")) addByCode(code);
+  else if (!document.getElementById("view-inv").classList.contains("hidden")) fillCodeFromScan(code);
+  else { showTab("pos"); addByCode(code); }
+}
+document.addEventListener("keydown", function (ev) {
+  if (ev.key === "Enter") {
+    if (burst && burst.chars.length >= 5 && burstMedianGap(burst) <= 60) {
+      var b = burst; burst = null;
+      ev.preventDefault(); ev.stopPropagation();
+      commitScan(b);
+    } else burst = null;
+    return;
+  }
+  if (!ev.key || ev.key.length !== 1) return;
+  var now = Date.now();
+  var t = ev.target, tag = (t && t.tagName) || "";
+  var editable = (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT");
+  if (!burst || now - burst.last > 90) {
+    burst = { chars: [], times: [], target: editable ? t : null, before: editable ? t.value : null, last: now, timer: null };
+  }
+  burst.chars.push(ev.key); burst.times.push(now); burst.last = now;
+  if (burst.timer) clearTimeout(burst.timer);
+  burst.timer = setTimeout(function () {
+    if (burst && burst.chars.length >= 8 && burstMedianGap(burst) <= 30) { var b2 = burst; burst = null; commitScan(b2); }
+    else burst = null;
+  }, 260);
+}, true);
 
 /* ---------- INICIO ---------- */
 renderInv();
