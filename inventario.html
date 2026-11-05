@@ -1,0 +1,607 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Inventario — Electro Alarmas</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #101014; --panel: #1a1a21; --panel2: #22222c; --line: #33333f;
+    --text: #f2f2f5; --muted: #a7a7b5; --red: #e0232e; --red-d: #b3121c;
+    --green: #2fbf71; --amber: #f5a623;
+  }
+  body { font-family: "Segoe UI", Arial, sans-serif; background: var(--bg); color: var(--text); }
+  header { background: linear-gradient(90deg, #16161c, #241014); border-bottom: 3px solid var(--red); padding: 14px 20px; display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+  header h1 { font-size: 22px; letter-spacing: 1px; }
+  header h1 span { color: var(--red); }
+  header .sub { color: var(--muted); font-size: 13px; width: 100%; }
+  nav { display: flex; gap: 8px; padding: 12px 20px 0; flex-wrap: wrap; }
+  nav button { background: var(--panel2); color: var(--text); border: 1px solid var(--line); padding: 10px 18px; border-radius: 8px; font-size: 15px; cursor: pointer; }
+  nav button.active { background: var(--red); border-color: var(--red); font-weight: 700; }
+  main { padding: 16px 20px 40px; max-width: 1150px; margin: 0 auto; }
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px; margin-bottom: 16px; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; }
+  .card .k { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .5px; }
+  .card .v { font-size: 22px; font-weight: 700; margin-top: 4px; }
+  .card.alert .v { color: var(--amber); }
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 16px; margin-bottom: 16px; }
+  .panel h2 { font-size: 17px; margin-bottom: 12px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 10px; }
+  label { display: block; font-size: 13px; color: var(--muted); margin-bottom: 4px; }
+  input, select { width: 100%; background: var(--panel2); border: 1px solid var(--line); color: var(--text); border-radius: 8px; padding: 9px 10px; font-size: 15px; }
+  input:focus, select:focus { outline: 2px solid var(--red); }
+  .btn { background: var(--red); color: #fff; border: none; border-radius: 8px; padding: 10px 16px; font-size: 15px; font-weight: 700; cursor: pointer; }
+  .btn:hover { background: var(--red-d); }
+  .btn.sec { background: var(--panel2); border: 1px solid var(--line); color: var(--text); font-weight: 400; }
+  .btn.green { background: var(--green); }
+  .btn.sm { padding: 6px 10px; font-size: 13px; }
+  .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: end; }
+  .row > * { flex: 0 0 auto; }
+  .grow { flex: 1 1 220px !important; }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  th, td { padding: 8px 8px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: middle; }
+  th { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .5px; }
+  td.num, th.num { text-align: right; }
+  td.ctr, th.ctr { text-align: center; }
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 20px; font-size: 12px; font-weight: 700; }
+  .badge.ok { background: #173d28; color: #7fe0ab; }
+  .badge.low { background: #4d3608; color: #ffc95e; }
+  .badge.out { background: #4d1216; color: #ff929a; }
+  .iconbtn { background: var(--panel2); border: 1px solid var(--line); color: var(--text); border-radius: 6px; padding: 4px 9px; cursor: pointer; font-size: 14px; }
+  .iconbtn:hover { border-color: var(--red); }
+  .hidden { display: none !important; }
+  .muted { color: var(--muted); font-size: 13px; }
+  .total-box { font-size: 20px; font-weight: 700; text-align: right; }
+  .total-box span { color: var(--red); }
+  .toast { position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%); background: #173d28; color: #d9ffe9; padding: 12px 22px; border-radius: 10px; font-size: 15px; font-weight: 700; z-index: 99; box-shadow: 0 4px 18px rgba(0,0,0,.5); display: none; }
+  /* Modal voucher */
+  .overlay { position: fixed; inset: 0; background: rgba(0,0,0,.7); display: flex; align-items: flex-start; justify-content: center; padding: 24px 12px; overflow: auto; z-index: 50; }
+  .modal { background: #fff; color: #111; border-radius: 10px; padding: 18px; width: 360px; max-width: 95vw; }
+  .modal .actions { display: flex; gap: 8px; margin-top: 14px; }
+  .ticket { font-family: "Courier New", monospace; font-size: 13px; color: #111; }
+  .ticket .c { text-align: center; }
+  .ticket h3 { font-size: 17px; letter-spacing: 1px; }
+  .ticket hr { border: none; border-top: 1px dashed #555; margin: 8px 0; }
+  .ticket table { font-size: 13px; }
+  .ticket th, .ticket td { border: none; padding: 3px 2px; color: #111; text-transform: none; letter-spacing: 0; }
+  @media print {
+    @page { size: 80mm auto; margin: 0; }
+    body * { visibility: hidden; }
+    #print-area, #print-area * { visibility: visible; }
+    #print-area { position: absolute; left: 0; top: 0; width: 80mm; padding: 3mm 4mm; }
+    .overlay { position: static; background: none; padding: 0; }
+    .modal { box-shadow: none; width: auto; }
+    .modal .actions { display: none; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>ELECTRO <span>ALARMAS</span></h1>
+  <div class="sub">Inventario y punto de venta · Av. Cotopaxi, a 2 minutos de Maltería Plaza, Latacunga · WhatsApp 0962957080</div>
+</header>
+<nav>
+  <button id="tab-inv" class="active" onclick="showTab('inv')">📦 Inventario</button>
+  <button id="tab-pos" onclick="showTab('pos')">💵 Cobrar</button>
+  <button id="tab-sales" onclick="showTab('sales')">🧾 Ventas</button>
+</nav>
+<main>
+  <section class="cards">
+    <div class="card"><div class="k">Productos</div><div class="v" id="sum-count">0</div></div>
+    <div class="card"><div class="k">Valor en stock</div><div class="v" id="sum-value">$0,00</div></div>
+    <div class="card alert"><div class="k">Alertas de stock</div><div class="v" id="sum-alerts">0</div></div>
+    <div class="card"><div class="k">Ventas de hoy</div><div class="v" id="sum-today">$0,00</div></div>
+  </section>
+
+  <!-- INVENTARIO -->
+  <section id="view-inv">
+    <div class="panel">
+      <h2 id="form-title">Añadir producto</h2>
+      <p class="muted" id="storage-status"></p>
+      <form id="prod-form" novalidate>
+        <input type="hidden" id="f-id">
+        <div class="grid">
+          <div><label>Nombre del producto *</label><input id="f-name" required placeholder="Ej: Alarma Chevrolet original"></div>
+          <div><label>Código</label><input id="f-code" placeholder="Ej: ALM-001"></div>
+          <div><label>Categoría</label><input id="f-cat" placeholder="Ej: Alarmas"></div>
+          <div><label>Costo ($)</label><input id="f-cost" type="text" inputmode="decimal" value="0"></div>
+          <div><label>Precio de venta ($) *</label><input id="f-price" type="text" inputmode="decimal" required placeholder="Ej: 25,00"></div>
+          <div><label>Stock *</label><input id="f-stock" type="number" step="1" min="0" required value="0"></div>
+          <div><label>Avisar cuando queden</label><input id="f-min" type="number" step="1" min="0" value="2"></div>
+        </div>
+        <div class="row" style="margin-top:12px">
+          <button type="submit" class="btn" id="form-save">Guardar producto</button>
+          <button type="button" class="btn sec hidden" id="form-cancel" onclick="resetForm()">Cancelar edición</button>
+        </div>
+      </form>
+    </div>
+
+    <div class="panel">
+      <div class="row" style="margin-bottom:12px">
+        <div class="grow"><label>Buscar producto</label><input id="inv-search" placeholder="Nombre, código o categoría..." oninput="renderInv()"></div>
+        <button class="btn green" onclick="exportExcel()">⬇ Exportar a Excel</button>
+        <button class="btn sec" onclick="exportBackup()">Respaldo</button>
+        <button class="btn sec" onclick="document.getElementById('import-file').click()">Restaurar</button>
+        <input type="file" id="import-file" accept=".json" class="hidden" onchange="importBackup(event)">
+      </div>
+      <div style="overflow-x:auto">
+      <table>
+        <thead><tr><th>Código</th><th>Producto</th><th>Categoría</th><th class="num">Costo</th><th class="num">Precio</th><th class="ctr">Stock</th><th class="ctr">Estado</th><th class="ctr">Acciones</th></tr></thead>
+        <tbody id="inv-body"></tbody>
+      </table>
+      </div>
+      <p class="muted" id="inv-empty">Todavía no hay productos. Añade el primero con el formulario de arriba.</p>
+    </div>
+  </section>
+
+  <!-- COBRAR -->
+  <section id="view-pos" class="hidden">
+    <div class="panel">
+      <h2>Armar la venta</h2>
+      <div class="row" style="margin-bottom:12px">
+        <div class="grow"><label>Buscar producto para vender</label><input id="pos-search" placeholder="Nombre o código..." oninput="renderPosList()"></div>
+      </div>
+      <div class="row" style="margin-bottom:6px">
+        <div class="grow"><label>Escaneo por código de barras (pistola / lector USB)</label><input id="scan-input" placeholder="Escanea el código aquí y el producto se añade solo a la venta..."></div>
+        <button class="btn sec" type="button" onclick="openCamScan()">📷 Escanear con cámara</button>
+      </div>
+      <p class="muted" id="scan-msg" style="margin-bottom:10px"></p>
+      <div style="overflow-x:auto">
+      <table>
+        <thead><tr><th>Producto</th><th class="num">Precio</th><th class="ctr">Disponible</th><th class="ctr">Añadir</th></tr></thead>
+        <tbody id="pos-body"></tbody>
+      </table>
+      </div>
+    </div>
+    <div class="panel">
+      <h2>Venta actual</h2>
+      <table>
+        <thead><tr><th>Producto</th><th class="num">Precio</th><th class="ctr">Cantidad</th><th class="num">Subtotal</th><th class="ctr">Quitar</th></tr></thead>
+        <tbody id="cart-body"></tbody>
+      </table>
+      <p class="muted" id="cart-empty">La venta está vacía. Añade productos de la lista de arriba.</p>
+      <div class="row" style="margin-top:14px; justify-content:space-between">
+        <div style="min-width:200px"><label>Forma de pago</label>
+          <select id="pay-method"><option>Efectivo</option><option>Tarjeta</option><option>Transferencia</option></select>
+        </div>
+        <div class="total-box">TOTAL: <span id="cart-total">$0,00</span></div>
+        <button class="btn" style="font-size:18px; padding:14px 28px" onclick="checkout()">COBRAR</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- VENTAS -->
+  <section id="view-sales" class="hidden">
+    <div class="panel">
+      <h2>Historial de ventas</h2>
+      <div style="overflow-x:auto">
+      <table>
+        <thead><tr><th>N.º</th><th>Fecha y hora</th><th>Detalle</th><th class="num">Total</th><th>Pago</th><th class="ctr">Comprobante</th></tr></thead>
+        <tbody id="sales-body"></tbody>
+      </table>
+      </div>
+      <p class="muted" id="sales-empty">Todavía no hay ventas registradas.</p>
+    </div>
+  </section>
+</main>
+
+<!-- MODAL VOUCHER -->
+<div id="voucher-overlay" class="overlay hidden">
+  <div class="modal">
+    <div id="print-area"><div class="ticket" id="ticket"></div></div>
+    <div class="actions">
+      <button class="btn" onclick="window.print()">🖨 Imprimir voucher</button>
+      <button class="btn sec" onclick="closeVoucher()">Cerrar</button>
+    </div>
+  </div>
+</div>
+
+<script>
+"use strict";
+var KEY = "ea_inventario_v1";
+var storageFail = false;
+var state = load();
+var cart = []; // {pid, qty}
+
+function load() {
+  try {
+    var raw = localStorage.getItem(KEY);
+    if (raw) { var s = JSON.parse(raw); if (s && s.products && s.sales) return s; }
+  } catch (e) { storageFail = true; }
+  return { products: [], sales: [], nextSale: 1 };
+}
+function save() { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) { storageFail = true; showStorageWarn(); } }
+function showStorageWarn() {
+  if (document.getElementById("storage-warn")) return;
+  var d = document.createElement("div");
+  d.id = "storage-warn";
+  d.style.cssText = "background:#4d1216;color:#ffb3ba;padding:10px 20px;font-size:14px;line-height:1.4";
+  d.textContent = "⚠ AVISO: abierto así, el navegador NO guarda los datos (pasa cuando se abre desde la vista previa de otra app). Descarga el archivo, guárdalo en una carpeta de tu PC y ábrelo desde ahí: así el inventario queda guardado.";
+  document.body.insertBefore(d, document.body.firstChild);
+}
+function uid() { return Date.now().toString(36) + Math.floor(Math.random() * 1e6).toString(36); }
+function parseNum(v) { return parseFloat(String(v == null ? "" : v).replace(",", ".")) || 0; }
+function toast(m) {
+  var t = document.getElementById("toast");
+  if (!t) { t = document.createElement("div"); t.id = "toast"; t.className = "toast"; document.body.appendChild(t); }
+  t.textContent = m; t.style.display = "block";
+  clearTimeout(t._h); t._h = setTimeout(function () { t.style.display = "none"; }, 2800);
+}
+function money(n) { return "$" + Number(n || 0).toFixed(2).replace(".", ","); }
+function esc(t) { return String(t == null ? "" : t).replace(/[&<>"']/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]; }); }
+function prod(pid) { for (var i = 0; i < state.products.length; i++) if (state.products[i].id === pid) return state.products[i]; return null; }
+function todayStr() { var d = new Date(); return d.getFullYear() + "-" + (d.getMonth() + 1) + "-" + d.getDate(); }
+function fmtDate(iso) { var d = new Date(iso); return d.toLocaleDateString("es-EC") + " " + d.toLocaleTimeString("es-EC", { hour: "2-digit", minute: "2-digit" }); }
+
+function showTab(t) {
+  ["inv", "pos", "sales"].forEach(function (k) {
+    document.getElementById("view-" + k).classList.toggle("hidden", k !== t);
+    document.getElementById("tab-" + k).classList.toggle("active", k === t);
+  });
+  if (t === "pos") renderPos();
+  if (t === "sales") renderSales();
+  renderSummary();
+}
+
+function renderSummary() {
+  var alerts = 0, value = 0;
+  state.products.forEach(function (p) {
+    value += (Number(p.cost) || 0) * (Number(p.stock) || 0);
+    if (p.stock <= 0 || p.stock <= (Number(p.min) || 0)) alerts++;
+  });
+  var todayTotal = 0;
+  state.sales.forEach(function (s) { if (!s.voided && s.date.slice(0, 10) === new Date().toISOString().slice(0, 10)) todayTotal += Number(s.total) || 0; });
+  // Comparación por fecha local:
+  todayTotal = 0;
+  state.sales.forEach(function (s) {
+    if (s.voided) return;
+    var d = new Date(s.date);
+    var now = new Date();
+    if (d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth() && d.getDate() === now.getDate()) todayTotal += Number(s.total) || 0;
+  });
+  document.getElementById("sum-count").textContent = state.products.length;
+  document.getElementById("sum-value").textContent = money(value);
+  document.getElementById("sum-alerts").textContent = alerts;
+  document.getElementById("sum-today").textContent = money(todayTotal);
+}
+
+/* ---------- INVENTARIO ---------- */
+function stockBadge(p) {
+  if (p.stock <= 0) return '<span class="badge out">AGOTADO</span>';
+  if (p.stock <= (Number(p.min) || 0)) return '<span class="badge low">BAJO</span>';
+  return '<span class="badge ok">OK</span>';
+}
+function renderInv() {
+  var q = (document.getElementById("inv-search").value || "").toLowerCase();
+  var body = document.getElementById("inv-body");
+  var rows = state.products.filter(function (p) {
+    return !q || (p.name + " " + (p.code || "") + " " + (p.cat || "")).toLowerCase().indexOf(q) >= 0;
+  });
+  document.getElementById("inv-empty").style.display = state.products.length ? "none" : "block";
+  body.innerHTML = rows.map(function (p) {
+    return "<tr>" +
+      "<td>" + esc(p.code || "—") + "</td>" +
+      "<td><strong>" + esc(p.name) + "</strong></td>" +
+      "<td>" + esc(p.cat || "—") + "</td>" +
+      '<td class="num">' + money(p.cost) + "</td>" +
+      '<td class="num">' + money(p.price) + "</td>" +
+      '<td class="ctr"><button class="iconbtn" onclick="adjStock(\'' + p.id + '\',-1)">−</button> <strong>' + p.stock + '</strong> <button class="iconbtn" onclick="adjStock(\'' + p.id + '\',1)">+</button></td>' +
+      '<td class="ctr">' + stockBadge(p) + "</td>" +
+      '<td class="ctr"><button class="iconbtn" title="Editar" onclick="editProd(\'' + p.id + '\')">✏️</button> <button class="iconbtn" title="Eliminar" onclick="delProd(\'' + p.id + '\')">🗑️</button></td>' +
+      "</tr>";
+  }).join("");
+  renderSummary();
+}
+function resetForm() {
+  document.getElementById("prod-form").reset();
+  document.getElementById("f-id").value = "";
+  document.getElementById("f-cost").value = "0";
+  document.getElementById("f-stock").value = "0";
+  document.getElementById("f-min").value = "2";
+  document.getElementById("form-title").textContent = "Añadir producto";
+  document.getElementById("form-save").textContent = "Guardar producto";
+  document.getElementById("form-cancel").classList.add("hidden");
+}
+function editProd(id) {
+  var p = prod(id); if (!p) return;
+  document.getElementById("f-id").value = p.id;
+  document.getElementById("f-name").value = p.name;
+  document.getElementById("f-code").value = p.code || "";
+  document.getElementById("f-cat").value = p.cat || "";
+  document.getElementById("f-cost").value = p.cost;
+  document.getElementById("f-price").value = p.price;
+  document.getElementById("f-stock").value = p.stock;
+  document.getElementById("f-min").value = p.min;
+  document.getElementById("form-title").textContent = "Editar producto";
+  document.getElementById("form-save").textContent = "Guardar cambios";
+  document.getElementById("form-cancel").classList.remove("hidden");
+  window.scrollTo({ top: 0, behavior: "smooth" });
+}
+function delProd(id) {
+  var p = prod(id); if (!p) return;
+  if (!confirm("¿Eliminar «" + p.name + "» del inventario? Esta acción no se puede deshacer.")) return;
+  state.products = state.products.filter(function (x) { return x.id !== id; });
+  cart = cart.filter(function (c) { return c.pid !== id; });
+  save(); renderInv(); renderCart();
+}
+function adjStock(id, d) {
+  var p = prod(id); if (!p) return;
+  p.stock = Math.max(0, (Number(p.stock) || 0) + d);
+  save(); renderInv();
+}
+document.getElementById("prod-form").addEventListener("submit", function (ev) {
+  ev.preventDefault();
+  var data = {
+    name: document.getElementById("f-name").value.trim(),
+    code: document.getElementById("f-code").value.trim(),
+    cat: document.getElementById("f-cat").value.trim(),
+    cost: parseNum(document.getElementById("f-cost").value),
+    price: parseNum(document.getElementById("f-price").value),
+    stock: parseInt(document.getElementById("f-stock").value, 10) || 0,
+    min: parseInt(document.getElementById("f-min").value, 10) || 0
+  };
+  if (!data.name) { toast("⚠ Escribe el nombre del producto"); document.getElementById("f-name").focus(); return; }
+  if (!(parseNum(document.getElementById("f-price").value) > 0)) { toast("⚠ Escribe el precio de venta"); document.getElementById("f-price").focus(); return; }
+  var id = document.getElementById("f-id").value;
+  if (id) { var p = prod(id); if (p) Object.assign(p, data); }
+  else { data.id = uid(); state.products.push(data); }
+  save(); resetForm(); renderInv();
+  toast(id ? "✅ Producto actualizado" : "✅ Producto añadido: " + data.name);
+});
+
+/* ---------- COBRAR ---------- */
+function renderPos() { renderPosList(); renderCart(); setTimeout(function () { var s = document.getElementById("scan-input"); if (s) s.focus(); }, 50); }
+function renderPosList() {
+  var q = (document.getElementById("pos-search").value || "").toLowerCase();
+  var body = document.getElementById("pos-body");
+  var rows = state.products.filter(function (p) {
+    return !q || (p.name + " " + (p.code || "")).toLowerCase().indexOf(q) >= 0;
+  });
+  body.innerHTML = rows.map(function (p) {
+    var dis = p.stock <= 0 ? " disabled" : "";
+    return "<tr><td><strong>" + esc(p.name) + "</strong>" + (p.code ? ' <span class="muted">' + esc(p.code) + "</span>" : "") + "</td>" +
+      '<td class="num">' + money(p.price) + "</td>" +
+      '<td class="ctr">' + p.stock + "</td>" +
+      '<td class="ctr"><button class="btn sm" onclick="addToCart(\'' + p.id + '\')"' + dis + ">+ Añadir</button></td></tr>";
+  }).join("");
+}
+function cartLine(pid) { for (var i = 0; i < cart.length; i++) if (cart[i].pid === pid) return cart[i]; return null; }
+function addToCart(pid) {
+  var p = prod(pid); if (!p) return;
+  var line = cartLine(pid);
+  var cur = line ? line.qty : 0;
+  if (cur + 1 > p.stock) { alert("No hay stock suficiente de «" + p.name + "» (disponible: " + p.stock + ")."); return; }
+  if (line) line.qty++; else cart.push({ pid: pid, qty: 1 });
+  renderCart();
+}
+function setCartQty(pid, q) {
+  var p = prod(pid); if (!p) return;
+  q = parseInt(q, 10);
+  if (isNaN(q) || q <= 0) { cart = cart.filter(function (c) { return c.pid !== pid; }); }
+  else {
+    if (q > p.stock) { alert("Stock máximo disponible: " + p.stock); q = p.stock; }
+    var line = cartLine(pid); if (line) line.qty = q;
+  }
+  renderCart();
+}
+function cartTotal() {
+  var t = 0;
+  cart.forEach(function (c) { var p = prod(c.pid); if (p) t += p.price * c.qty; });
+  return t;
+}
+function renderCart() {
+  var body = document.getElementById("cart-body");
+  document.getElementById("cart-empty").style.display = cart.length ? "none" : "block";
+  body.innerHTML = cart.map(function (c) {
+    var p = prod(c.pid); if (!p) return "";
+    return "<tr><td><strong>" + esc(p.name) + "</strong></td>" +
+      '<td class="num">' + money(p.price) + "</td>" +
+      '<td class="ctr"><button class="iconbtn" onclick="setCartQty(\'' + p.id + '\',' + (c.qty - 1) + ')">−</button> ' + c.qty + ' <button class="iconbtn" onclick="setCartQty(\'' + p.id + '\',' + (c.qty + 1) + ')">+</button></td>' +
+      '<td class="num">' + money(p.price * c.qty) + "</td>" +
+      '<td class="ctr"><button class="iconbtn" onclick="setCartQty(\'' + p.id + '\',0)">🗑️</button></td></tr>';
+  }).join("");
+  document.getElementById("cart-total").textContent = money(cartTotal());
+}
+function checkout() {
+  if (!cart.length) { alert("La venta está vacía. Añade al menos un producto."); return; }
+  var items = [], total = 0;
+  for (var i = 0; i < cart.length; i++) {
+    var p = prod(cart[i].pid);
+    if (!p) continue;
+    if (cart[i].qty > p.stock) { alert("Stock insuficiente de «" + p.name + "». Ajusta la venta."); return; }
+    items.push({ pid: p.id, name: p.name, code: p.code || "", price: p.price, qty: cart[i].qty });
+    total += p.price * cart[i].qty;
+  }
+  if (!items.length) { alert("La venta está vacía."); return; }
+  items.forEach(function (it) { var p = prod(it.pid); if (p) p.stock -= it.qty; });
+  var sale = { id: uid(), num: state.nextSale++, date: new Date().toISOString(), items: items, total: total, pay: document.getElementById("pay-method").value, voided: false };
+  state.sales.push(sale);
+  save();
+  cart = [];
+  renderPos(); renderInv();
+  showVoucher(sale);
+}
+
+/* ---------- VOUCHER ---------- */
+function ticketHTML(s) {
+  var lines = s.items.map(function (it) {
+    return "<tr><td>" + esc(it.name) + "<br><span>" + it.qty + " x " + money(it.price) + "</span></td>" +
+      '<td class="num" style="text-align:right">' + money(it.price * it.qty) + "</td></tr>";
+  }).join("");
+  return '<div class="c"><h3>ELECTRO ALARMAS</h3>' +
+    "<div>Servicio técnico · Lujos y accesorios</div>" +
+    "<div>Av. Cotopaxi, a 2 minutos de Maltería Plaza</div>" +
+    "<div>Latacunga · WhatsApp 0962957080 / 0998366414</div></div>" +
+    "<hr><div>Comprobante N.º " + s.num + (s.voided ? " (ANULADO)" : "") + "</div>" +
+    "<div>Fecha: " + fmtDate(s.date) + "</div>" +
+    "<hr><table>" + lines + "</table>" +
+    "<hr><table><tr><td><strong>TOTAL</strong></td>" +
+    '<td class="num" style="text-align:right"><strong>' + money(s.total) + "</strong></td></tr></table>" +
+    "<div>Forma de pago: " + esc(s.pay) + "</div>" +
+    "<hr>" + '<div class="c">¡Gracias por su compra!</div>';
+}
+function showVoucher(sale) {
+  document.getElementById("ticket").innerHTML = ticketHTML(sale);
+  document.getElementById("voucher-overlay").classList.remove("hidden");
+}
+function closeVoucher() { document.getElementById("voucher-overlay").classList.add("hidden"); }
+
+/* ---------- VENTAS ---------- */
+function renderSales() {
+  var body = document.getElementById("sales-body");
+  var list = state.sales.slice().reverse();
+  document.getElementById("sales-empty").style.display = state.sales.length ? "none" : "block";
+  body.innerHTML = list.map(function (s) {
+    var detail = s.items.map(function (it) { return esc(it.name) + " x" + it.qty; }).join(", ");
+    var act = s.voided ? '<span class="badge out">ANULADA</span>'
+      : '<button class="iconbtn" onclick="reprint(\'' + s.id + '\')">🖨 Reimprimir</button> <button class="iconbtn" onclick="voidSale(\'' + s.id + '\')">Anular</button>';
+    return "<tr><td>" + s.num + "</td><td>" + fmtDate(s.date) + "</td><td>" + detail + "</td>" +
+      '<td class="num">' + money(s.total) + "</td><td>" + esc(s.pay) + "</td>" +
+      '<td class="ctr">' + act + "</td></tr>";
+  }).join("");
+  renderSummary();
+}
+function findSale(id) { for (var i = 0; i < state.sales.length; i++) if (state.sales[i].id === id) return state.sales[i]; return null; }
+function reprint(id) { var s = findSale(id); if (s) showVoucher(s); }
+function voidSale(id) {
+  var s = findSale(id); if (!s || s.voided) return;
+  if (!confirm("¿Anular la venta N.º " + s.num + "? El stock de sus productos se devuelve al inventario.")) return;
+  s.items.forEach(function (it) { var p = prod(it.pid); if (p) p.stock += it.qty; });
+  s.voided = true;
+  save(); renderSales(); renderInv();
+}
+
+/* ---------- EXCEL ---------- */
+function csvCell(v) { v = String(v == null ? "" : v); return '"' + v.replace(/"/g, '""') + '"'; }
+function numCsv(n) { return String(Number(n || 0).toFixed(2)).replace(".", ","); }
+function exportExcel() {
+  var rows = [["Código", "Producto", "Categoría", "Costo", "Precio", "Stock", "Valor en stock"]];
+  state.products.forEach(function (p) {
+    rows.push([p.code || "", p.name, p.cat || "", numCsv(p.cost), numCsv(p.price), p.stock, numCsv((Number(p.price) || 0) * (Number(p.stock) || 0))]);
+  });
+  var csv = "﻿" + rows.map(function (r) { return r.map(csvCell).join(";"); }).join("\r\n");
+  download(new Blob([csv], { type: "text/csv;charset=utf-8" }), "inventario-electro-alarmas.csv");
+}
+function download(blob, name) {
+  var a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = name;
+  document.body.appendChild(a); a.click();
+  setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 400);
+}
+
+/* ---------- RESPALDO ---------- */
+function exportBackup() {
+  download(new Blob([JSON.stringify(state, null, 2)], { type: "application/json" }), "respaldo-inventario-electro-alarmas.json");
+}
+function importBackup(ev) {
+  var f = ev.target.files[0]; if (!f) return;
+  var r = new FileReader();
+  r.onload = function () {
+    try {
+      var s = JSON.parse(r.result);
+      if (!s || !Array.isArray(s.products) || !Array.isArray(s.sales)) throw new Error("formato");
+      if (!confirm("Esto REEMPLAZA el inventario y las ventas actuales por los del respaldo. ¿Continuar?")) return;
+      state = s; if (!state.nextSale) state.nextSale = 1;
+      cart = [];
+      save(); resetForm(); renderInv(); renderPos(); renderSales();
+      alert("Respaldo restaurado correctamente.");
+    } catch (e) { alert("El archivo no es un respaldo válido."); }
+    ev.target.value = "";
+  };
+  r.readAsText(f);
+}
+
+/* ---------- CÓDIGO DE BARRAS ---------- */
+function scanMsg(txt) { var el = document.getElementById("scan-msg"); if (el) el.textContent = txt; }
+function addByCode(code) {
+  code = String(code || "").trim();
+  if (!code) return;
+  var found = null;
+  state.products.forEach(function (p) { if ((p.code || "").trim().toLowerCase() === code.toLowerCase()) found = p; });
+  if (!found) { scanMsg("⚠ Código " + code + " no está registrado. Añádelo primero en la pestaña Inventario (campo Código)."); return; }
+  if (found.stock <= 0) { scanMsg("⚠ «" + found.name + "» está AGOTADO."); return; }
+  addToCart(found.id);
+  scanMsg("✅ Añadido a la venta: " + found.name + " (" + money(found.price) + ")");
+  var s = document.getElementById("scan-input"); if (s) { s.value = ""; s.focus(); }
+}
+document.getElementById("scan-input").addEventListener("keydown", function (ev) {
+  if (ev.key === "Enter") { ev.preventDefault(); addByCode(ev.target.value); }
+});
+
+var camStream = null, camTimer = null, camOverlay = null;
+function closeCamScan() {
+  if (camTimer) { clearInterval(camTimer); camTimer = null; }
+  if (camStream) { camStream.getTracks().forEach(function (t) { t.stop(); }); camStream = null; }
+  if (camOverlay) { camOverlay.remove(); camOverlay = null; }
+}
+function openCamScan() {
+  if (!("BarcodeDetector" in window) || !navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    alert("Este navegador no admite escaneo con cámara. Puedes usar la pistola lectora USB o escribir el código y pulsar Enter.");
+    return;
+  }
+  camOverlay = document.createElement("div");
+  camOverlay.className = "overlay";
+  camOverlay.innerHTML = '<div class="modal" style="width:420px"><h3 style="margin-bottom:8px">Escanea el código de barras</h3>' +
+    '<video id="cam-video" autoplay playsinline style="width:100%;border-radius:8px;background:#000"></video>' +
+    '<p class="muted" style="margin-top:8px">Apunta la cámara al código del producto. Al detectarlo se añade solo a la venta.</p>' +
+    '<div class="actions"><button class="btn sec" onclick="closeCamScan()">Cancelar</button></div></div>';
+  document.body.appendChild(camOverlay);
+  var video = camOverlay.querySelector("#cam-video");
+  navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } }).then(function (stream) {
+    camStream = stream; video.srcObject = stream;
+    var detector;
+    try { detector = new BarcodeDetector({ formats: ["ean_13", "ean_8", "code_128", "code_39", "upc_a", "upc_e", "qr_code"] }); }
+    catch (e) { detector = new BarcodeDetector(); }
+    camTimer = setInterval(function () {
+      detector.detect(video).then(function (codes) {
+        if (codes && codes.length) { var val = codes[0].rawValue; closeCamScan(); addByCode(val); }
+      }).catch(function () {});
+    }, 350);
+  }).catch(function () {
+    closeCamScan();
+    alert("No se pudo abrir la cámara. Revisa el permiso de cámara del navegador, o usa la pistola lectora USB.");
+  });
+}
+
+/* La pistola escribe muy rápido y termina con Enter: se captura en Cobrar (añade a la venta) y en Inventario (llena el Código del formulario) */
+var scanBuf = "", scanLast = 0;
+document.addEventListener("keydown", function (ev) {
+  var tag = (ev.target && ev.target.tagName) || "";
+  if (tag === "INPUT" || tag === "SELECT" || tag === "TEXTAREA") return;
+  var now = Date.now();
+  if (now - scanLast > 120) scanBuf = "";
+  scanLast = now;
+  if (ev.key === "Enter") {
+    if (scanBuf.length >= 4) {
+      ev.preventDefault();
+      if (!document.getElementById("view-pos").classList.contains("hidden")) addByCode(scanBuf);
+      else if (!document.getElementById("view-inv").classList.contains("hidden")) fillCodeFromScan(scanBuf);
+    }
+    scanBuf = ""; return;
+  }
+  if (ev.key && ev.key.length === 1) scanBuf += ev.key;
+});
+/* Si el cursor está en el campo Código, el Enter de la pistola NO envía el formulario: pasa al Nombre */
+document.getElementById("f-code").addEventListener("keydown", function (ev) {
+  if (ev.key === "Enter") { ev.preventDefault(); document.getElementById("f-name").focus(); }
+});
+function fillCodeFromScan(code) {
+  code = String(code || "").trim(); if (!code) return;
+  var existing = null;
+  state.products.forEach(function (p) { if ((p.code || "").trim().toLowerCase() === code.toLowerCase()) existing = p; });
+  if (existing) { editProd(existing.id); toast("Ese código ya existe: abrí «" + existing.name + "» para editar"); return; }
+  document.getElementById("f-code").value = code;
+  toast("🏷️ Código escaneado: " + code + " — completa nombre, precio y stock");
+  document.getElementById("f-name").focus();
+}
+
+/* ---------- INICIO ---------- */
+renderInv();
+renderSummary();
+if (storageFail) showStorageWarn();
+else { var ss = document.getElementById("storage-status"); if (ss) ss.textContent = "✔ Guardado automático activado: tus datos quedan guardados en esta computadora. Para registrar un producto también puedes escanear su código de barras."; }
+</script>
+</body>
+</html>
