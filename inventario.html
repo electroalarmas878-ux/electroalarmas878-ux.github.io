@@ -59,12 +59,12 @@
   .overlay { position: fixed; inset: 0; background: rgba(0,0,0,.7); display: flex; align-items: flex-start; justify-content: center; padding: 24px 12px; overflow: auto; z-index: 50; }
   .modal { background: #fff; color: #111; border-radius: 10px; padding: 18px; width: 360px; max-width: 95vw; }
   .modal .actions { display: flex; gap: 8px; margin-top: 14px; }
-  .ticket { font-family: "Courier New", monospace; font-size: 13px; color: #111; }
+  .ticket { font-family: "Courier New", monospace; font-size: 13px; color: #000; font-weight: 700; }
   .ticket .c { text-align: center; }
   .ticket h3 { font-size: 17px; letter-spacing: 1px; }
-  .ticket hr { border: none; border-top: 1px dashed #555; margin: 8px 0; }
+  .ticket hr { border: none; border-top: 2px solid #000; margin: 8px 0; }
   .ticket table { font-size: 13px; }
-  .ticket th, .ticket td { border: none; padding: 3px 2px; color: #111; text-transform: none; letter-spacing: 0; }
+  .ticket th, .ticket td { border: none; padding: 3px 2px; color: #000; text-transform: none; letter-spacing: 0; }
   @media print {
     @page { size: 80mm auto; margin: 0; }
     body * { visibility: hidden; }
@@ -126,6 +126,8 @@
         <button class="btn sec" onclick="exportBackup()">Respaldo</button>
         <button class="btn sec" onclick="document.getElementById('import-file').click()">Restaurar</button>
         <input type="file" id="import-file" accept=".json" class="hidden" onchange="importBackup(event)">
+        <button class="btn sec" onclick="document.getElementById('import-csv').click()">Importar lista (CSV)</button>
+        <input type="file" id="import-csv" accept=".csv,.txt" class="hidden" onchange="importList(event)">
       </div>
       <div style="overflow-x:auto">
       <table>
@@ -477,6 +479,90 @@ function voidSale(id) {
 /* ---------- EXCEL ---------- */
 function csvCell(v) { v = String(v == null ? "" : v); return '"' + v.replace(/"/g, '""') + '"'; }
 function numCsv(n) { return String(Number(n || 0).toFixed(2)).replace(".", ","); }
+function parseMoney(v) {
+  if (v == null) return 0;
+  var t = String(v).replace(/[$\s]/g, "");
+  if (!t) return 0;
+  var lc = t.lastIndexOf(","), ld = t.lastIndexOf(".");
+  if (lc > ld) t = t.replace(/\./g, "").replace(",", ".");
+  else if (ld > lc) t = t.replace(/,/g, "");
+  var n = parseFloat(t);
+  return isNaN(n) ? 0 : n;
+}
+function parseCsvRows(text, delim) {
+  var rows = [], row = [], cell = "", inQ = false;
+  var t = String(text).replace(/^\uFEFF/, "");
+  for (var i = 0; i < t.length; i++) {
+    var c = t[i];
+    if (inQ) { if (c === '"') { if (t[i + 1] === '"') { cell += '"'; i++; } else inQ = false; } else cell += c; }
+    else if (c === '"' && cell === "") inQ = true;
+    else if (c === delim) { row.push(cell); cell = ""; }
+    else if (c === "\n" || c === "\r") { if (c === "\r" && t[i + 1] === "\n") i++; row.push(cell); cell = ""; if (row.length > 1 || row[0].trim()) rows.push(row); row = []; }
+    else cell += c;
+  }
+  row.push(cell); if (row.length > 1 || row[0].trim()) rows.push(row);
+  return rows;
+}
+function normH(h) { return String(h || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim(); }
+function colRole(h) {
+  if (/(costo|compra|cost)/.test(h)) return "cost";
+  if (/(minim|alerta)/.test(h)) return "min";
+  if (/(codigo|barra|barcode|ean|sku|referencia|clave|^id$)/.test(h)) return "code";
+  if (/(venta|pvp|publico)/.test(h)) return "price";
+  if (/(nombre|producto|descripcion|detalle|articulo|product|name)/.test(h)) return "name";
+  if (/(categoria|grupo|familia|departamento|linea)/.test(h)) return "category";
+  if (/(stock|existencia|cantidad|saldo|inventario|disponible|qty|quantity)/.test(h)) return "stock";
+  if (/(precio|price)/.test(h)) return "price";
+  return "";
+}
+function importCsv(text) {
+  var firstLine = String(text).replace(/^\uFEFF/, "").split(/\r?\n/)[0] || "";
+  var delim = ";", best = -1;
+  [";", ",", "\t"].forEach(function (d) { var n = firstLine.split(d).length; if (n > best) { best = n; delim = d; } });
+  var rows = parseCsvRows(text, delim);
+  var res = { added: 0, skipped: 0 };
+  if (!rows.length) return res;
+  var roles = rows[0].map(function (h) { return colRole(normH(h)); });
+  var hasHeader = roles.indexOf("name") >= 0 || roles.indexOf("code") >= 0;
+  var idx = { code: 0, name: 1, category: 2, cost: 3, price: 4, stock: 5, min: 6 };
+  if (hasHeader) {
+    idx = {}; roles.forEach(function (r, i) { if (r && idx[r] === undefined) idx[r] = i; });
+    var defs = { code: 0, name: 1, category: 2, cost: 3, price: 4, stock: 5, min: 6 };
+    Object.keys(defs).forEach(function (r) {
+      if (idx[r] === undefined) {
+        var used = Object.keys(idx).map(function (k) { return idx[k]; });
+        if (used.indexOf(defs[r]) < 0 && defs[r] < rows[0].length) idx[r] = defs[r];
+      }
+    });
+  }
+  var seen = {};
+  state.products.forEach(function (p) { if (p.code) seen[p.code.trim().toLowerCase()] = true; });
+  for (var i = hasHeader ? 1 : 0; i < rows.length; i++) {
+    var cells = rows[i];
+    function cell(role) { var j = idx[role]; return (j === undefined || cells[j] === undefined) ? "" : String(cells[j]).trim(); }
+    var name = cell("name"); if (!name) continue;
+    var code = cell("code");
+    if (code && seen[code.toLowerCase()]) { res.skipped++; continue; }
+    state.products.push({ id: uid(), code: code, name: name, category: cell("category"),
+      cost: parseMoney(cell("cost")), price: parseMoney(cell("price")),
+      stock: Math.round(parseMoney(cell("stock"))) || 0, min: Math.round(parseMoney(cell("min"))) || 0 });
+    if (code) seen[code.toLowerCase()] = true;
+    res.added++;
+  }
+  return res;
+}
+function importList(ev) {
+  var f = ev.target.files && ev.target.files[0];
+  ev.target.value = "";
+  if (!f) return;
+  var rd = new FileReader();
+  rd.onload = function () {
+    var res = importCsv(String(rd.result || ""));
+    if (res.added > 0) { save(); renderInv(); renderSummary(); toast("✅ " + res.added + " productos importados" + (res.skipped ? " (" + res.skipped + " ya existían y se saltaron)" : "")); }
+    else toast("⚠ No se importó ningún producto nuevo" + (res.skipped ? ": todos ya existían" : " — revisa el archivo"));
+  };
+  rd.readAsText(f);
+}
 function exportExcel() {
   var rows = [["Código", "Producto", "Categoría", "Costo", "Precio", "Stock", "Valor en stock"]];
   state.products.forEach(function (p) {
