@@ -731,6 +731,14 @@ document.addEventListener("keydown", function (ev) {
   }, 450);
 }, true);
 
+/* El foco se queda fijo en el campo de escaneo dentro de Cobrar:
+   mousedown en zonas libres no le quita el foco (patrón típico de POS con pistola) */
+document.getElementById("view-pos").addEventListener("mousedown", function (ev) {
+  var t = ev.target, tag = (t && t.tagName) || "";
+  if (tag === "INPUT" || tag === "SELECT" || tag === "TEXTAREA" || tag === "BUTTON" || tag === "A" || tag === "LABEL") return;
+  ev.preventDefault();
+  var s = document.getElementById("scan-input"); if (s) s.focus();
+});
 /* Clic en cualquier zona libre de Cobrar devuelve el foco al campo de escaneo */
 document.getElementById("view-pos").addEventListener("click", function (ev) {
   var t = ev.target, tag = (t && t.tagName) || "";
