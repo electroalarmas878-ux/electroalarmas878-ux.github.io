@@ -280,14 +280,14 @@ function renderInv() {
   var q = (document.getElementById("inv-search").value || "").toLowerCase();
   var body = document.getElementById("inv-body");
   var rows = state.products.filter(function (p) {
-    return !q || (p.name + " " + (p.code || "") + " " + (p.cat || "")).toLowerCase().indexOf(q) >= 0;
+    return !q || (p.name + " " + (p.code || "") + " " + (p.cat || p.category || "")).toLowerCase().indexOf(q) >= 0;
   });
   document.getElementById("inv-empty").style.display = state.products.length ? "none" : "block";
   body.innerHTML = rows.map(function (p) {
     return "<tr>" +
       "<td>" + esc(p.code || "—") + "</td>" +
       "<td><strong>" + esc(p.name) + "</strong></td>" +
-      "<td>" + esc(p.cat || "—") + "</td>" +
+      "<td>" + esc(p.cat || p.category || "—") + "</td>" +
       '<td class="num">' + money(p.cost) + "</td>" +
       '<td class="num">' + money(p.price) + "</td>" +
       '<td class="ctr"><button class="iconbtn" onclick="adjStock(\'' + p.id + '\',-1)">−</button> <strong>' + p.stock + '</strong> <button class="iconbtn" onclick="adjStock(\'' + p.id + '\',1)">+</button></td>' +
@@ -543,7 +543,7 @@ function importCsv(text) {
     var name = cell("name"); if (!name) continue;
     var code = cell("code");
     if (code && seen[code.toLowerCase()]) { res.skipped++; continue; }
-    state.products.push({ id: uid(), code: code, name: name, category: cell("category"),
+    state.products.push({ id: uid(), code: code, name: name, cat: cell("category"),
       cost: parseMoney(cell("cost")), price: parseMoney(cell("price")),
       stock: Math.round(parseMoney(cell("stock"))) || 0, min: Math.round(parseMoney(cell("min"))) || 0 });
     if (code) seen[code.toLowerCase()] = true;
