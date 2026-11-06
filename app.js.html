@@ -679,6 +679,14 @@ function burstMedianGap(b) {
   gaps.sort(function (a, c) { return a - c; });
   return gaps.length ? gaps[Math.floor(gaps.length / 2)] : 999;
 }
+function codeExists(code) {
+  code = String(code || "").trim().toLowerCase();
+  if (!code) return false;
+  var ok = false;
+  state.products.forEach(function (p) { if ((p.code || "").trim().toLowerCase() === code) ok = true; });
+  return ok;
+}
+function isScanField(t) { return t && (t.id === "scan-input" || t.id === "inv-scan" || t.id === "f-code"); }
 function commitScan(b) {
   var code = b.chars.join("");
   if (b.target && b.target.id !== "f-code" && b.target.id !== "inv-scan" && b.target.id !== "scan-input") {
@@ -693,10 +701,14 @@ function commitScan(b) {
 }
 document.addEventListener("keydown", function (ev) {
   if (ev.key === "Enter") {
-    if (burst && burst.chars.length >= 5 && burstMedianGap(burst) <= 60) {
+    if (burst && burst.chars.length >= 4 && burstMedianGap(burst) <= 110) {
       var b = burst; burst = null;
-      ev.preventDefault(); ev.stopPropagation();
-      commitScan(b);
+      if (b.timer) clearTimeout(b.timer);
+      if (!b.target || isScanField(b.target) || codeExists(b.chars.join(""))) {
+        ev.preventDefault(); ev.stopPropagation();
+        commitScan(b);
+      }
+      /* si no coincide con un código y estaba escribiendo en un campo, era escritura normal: se deja pasar */
     } else burst = null;
     return;
   }
@@ -704,16 +716,27 @@ document.addEventListener("keydown", function (ev) {
   var now = Date.now();
   var t = ev.target, tag = (t && t.tagName) || "";
   var editable = (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT");
-  if (!burst || now - burst.last > 90) {
+  if (!burst || now - burst.last > 160) {
     burst = { chars: [], times: [], target: editable ? t : null, before: editable ? t.value : null, last: now, timer: null };
   }
   burst.chars.push(ev.key); burst.times.push(now); burst.last = now;
   if (burst.timer) clearTimeout(burst.timer);
+  var myBurst = burst;
   burst.timer = setTimeout(function () {
-    if (burst && burst.chars.length >= 8 && burstMedianGap(burst) <= 30) { var b2 = burst; burst = null; commitScan(b2); }
-    else burst = null;
-  }, 260);
+    if (burst !== myBurst) return; /* temporizador de una ráfaga anterior: no tocar la actual */
+    burst = null;
+    if (myBurst.chars.length >= 8 && burstMedianGap(myBurst) <= 60) {
+      if (!myBurst.target || isScanField(myBurst.target) || codeExists(myBurst.chars.join(""))) commitScan(myBurst);
+    }
+  }, 450);
 }, true);
+
+/* Clic en cualquier zona libre de Cobrar devuelve el foco al campo de escaneo */
+document.getElementById("view-pos").addEventListener("click", function (ev) {
+  var t = ev.target, tag = (t && t.tagName) || "";
+  if (tag === "INPUT" || tag === "SELECT" || tag === "TEXTAREA" || tag === "BUTTON" || tag === "A") return;
+  var s = document.getElementById("scan-input"); if (s) s.focus();
+});
 
 /* ---------- INICIO ---------- */
 renderInv();
