@@ -94,7 +94,7 @@
 <main>
   <section class="cards">
     <div class="card"><div class="k">Productos</div><div class="v" id="sum-count">0</div></div>
-    <div class="card"><div class="k">Valor en stock</div><div class="v" id="sum-value">$0,00</div></div>
+    <div class="card" id="card-value"><div class="k">Valor en stock</div><div class="v" id="sum-value">$0,00</div></div>
     <div class="card alert"><div class="k">Alertas de stock</div><div class="v" id="sum-alerts">0</div></div>
     <div class="card"><div class="k">Ventas de hoy</div><div class="v" id="sum-today">$0,00</div></div>
   </section>
@@ -162,8 +162,8 @@
       </div>
     </div>
       <div class="panel">
-      <h2>Armar la venta</h2>
-      <div class="row" style="margin-bottom:12px">
+      <h2 id="pos-armar-title">Armar la venta</h2>
+      <div class="row" id="pos-search-row" style="margin-bottom:12px">
         <div class="grow"><label>Buscar producto para vender</label><input id="pos-search" placeholder="Nombre o código..." oninput="renderPosList()"></div>
       </div>
       <div class="row" style="margin-bottom:6px">
@@ -171,7 +171,7 @@
         <button class="btn sec" type="button" onclick="openCamScan()">📷 Escanear con cámara</button>
       </div>
       <p class="muted" id="scan-msg" style="margin-bottom:10px"></p>
-      <div style="overflow-x:auto">
+      <div style="overflow-x:auto" id="pos-table-wrap">
       <table>
         <thead><tr><th>Producto</th><th class="num">Precio</th><th class="ctr">Disponible</th><th class="ctr">Añadir</th></tr></thead>
         <tbody id="pos-body"></tbody>
@@ -865,6 +865,12 @@ function roleName() { return myRole === "admin" ? "Administrador" : "Vendedor"; 
 function chipSync() { cloudChip("☁ En línea · " + roleName() + " · sincronizado"); }
 function applyRole() {
   var admin = myRole === "admin";
+  var worker = !admin;
+  var sr = document.getElementById("pos-search-row"); if (sr) sr.classList.toggle("hidden", worker);
+  var tw = document.getElementById("pos-table-wrap"); if (tw) tw.classList.toggle("hidden", worker);
+  var cv = document.getElementById("card-value"); if (cv) cv.classList.toggle("hidden", worker);
+  var pt = document.getElementById("pos-armar-title"); if (pt) pt.textContent = worker ? "Escanear o escribir el código" : "Armar la venta";
+  var ce = document.getElementById("cart-empty"); if (ce) ce.textContent = worker ? "La venta está vacía. Escanea el código de barras o escríbelo y pulsa Enter." : "La venta está vacía. Añade productos escaneando o desde la lista de abajo.";
   document.getElementById("tab-inv").classList.toggle("hidden", !admin);
   document.getElementById("tab-sales").classList.toggle("hidden", !admin);
   document.getElementById("tab-users").classList.toggle("hidden", !admin);
