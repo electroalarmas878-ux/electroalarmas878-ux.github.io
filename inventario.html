@@ -303,6 +303,7 @@ function renderInv() {
 }
 var alertFilter = false;
 function toggleAlertFilter() {
+  if (typeof myRole !== "undefined" && myRole !== "admin") return;
   alertFilter = !alertFilter;
   var card = document.getElementById("card-alerts");
   if (card) { card.style.outline = alertFilter ? "2px solid #e5484d" : ""; }

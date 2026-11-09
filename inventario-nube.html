@@ -357,6 +357,7 @@ function renderInv() {
 }
 var alertFilter = false;
 function toggleAlertFilter() {
+  if (typeof myRole !== "undefined" && myRole !== "admin") return;
   alertFilter = !alertFilter;
   var card = document.getElementById("card-alerts");
   if (card) { card.style.outline = alertFilter ? "2px solid #e5484d" : ""; }
@@ -899,6 +900,7 @@ function applyRole() {
   var sr = document.getElementById("pos-search-row"); if (sr) sr.classList.toggle("hidden", worker);
   var tw = document.getElementById("pos-table-wrap"); if (tw) tw.classList.toggle("hidden", worker);
   var cv = document.getElementById("card-value"); if (cv) cv.classList.toggle("hidden", worker);
+  var ca = document.getElementById("card-alerts"); if (ca) ca.classList.toggle("hidden", worker);
   var pt = document.getElementById("pos-armar-title"); if (pt) pt.textContent = worker ? "Escanear o escribir el código" : "Armar la venta";
   var ce = document.getElementById("cart-empty"); if (ce) ce.textContent = worker ? "La venta está vacía. Escanea el código de barras o escríbelo y pulsa Enter." : "La venta está vacía. Añade productos escaneando o desde la lista de abajo.";
   document.getElementById("tab-inv").classList.toggle("hidden", !admin);
