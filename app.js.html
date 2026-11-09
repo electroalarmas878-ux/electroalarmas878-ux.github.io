@@ -91,7 +91,7 @@
     <div class="card"><div class="k">Productos</div><div class="v" id="sum-count">0</div></div>
     <div class="card"><div class="k">Valor en stock</div><div class="v" id="sum-value">$0,00</div></div>
     <div class="card alert" id="card-alerts" onclick="toggleAlertFilter()" style="cursor:pointer" title="Clic para ver solo los productos en alerta"><div class="k" id="alerts-k">Alertas de stock 👆</div><div class="v" id="sum-alerts">0</div></div>
-    <div class="card"><div class="k">Ventas de hoy</div><div class="v" id="sum-today">$0,00</div></div>
+    <div class="card" id="card-today" onclick="toggleTodaySales()" style="cursor:pointer" title="Clic para ver los productos vendidos hoy"><div class="k" id="today-k">Ventas de hoy 👆</div><div class="v" id="sum-today">$0,00</div></div>
   </section>
 
   <!-- INVENTARIO -->
@@ -181,6 +181,11 @@
   <section id="view-sales" class="hidden">
     <div class="panel">
       <h2>Historial de ventas</h2>
+      <div id="today-panel" class="hidden" style="background:#12261a; border:1px solid #1d4d2e; border-radius:8px; padding:10px 12px; margin-bottom:12px">
+        <div style="display:flex; justify-content:space-between; align-items:center; gap:8px"><strong>🧾 Productos vendidos hoy</strong><button class="iconbtn" onclick="toggleTodaySales()">✕ Quitar</button></div>
+        <div id="today-list" style="margin-top:8px"></div>
+        <div id="today-total" style="text-align:right; font-weight:700; margin-top:6px"></div>
+      </div>
       <div style="overflow-x:auto">
       <table>
         <thead><tr><th>N.º</th><th>Fecha y hora</th><th>Detalle</th><th class="num">Total</th><th>Pago</th><th class="ctr">Comprobante</th></tr></thead>
@@ -303,7 +308,7 @@ function renderInv() {
 }
 var alertFilter = false;
 function toggleAlertFilter() {
-  if (typeof myRole !== "undefined" && myRole !== "admin") return;
+  if (typeof myRole !== "undefined" && myRole !== "admin") { toast("🔒 Solo el administrador puede ver esa lista"); return; }
   alertFilter = !alertFilter;
   var card = document.getElementById("card-alerts");
   if (card) { card.style.outline = alertFilter ? "2px solid #e5484d" : ""; }
@@ -482,9 +487,40 @@ function showVoucher(sale) {
 function closeVoucher() { document.getElementById("voucher-overlay").classList.add("hidden"); }
 
 /* ---------- VENTAS ---------- */
+var todayFilter = false;
+function isTodaySale(s) { var d = new Date(s.date), n = new Date(); return d.getFullYear() === n.getFullYear() && d.getMonth() === n.getMonth() && d.getDate() === n.getDate(); }
+function toggleTodaySales() {
+  if (typeof myRole !== "undefined" && myRole !== "admin") { toast("🔒 Solo el administrador puede ver esa lista"); return; }
+  todayFilter = !todayFilter;
+  var card = document.getElementById("card-today");
+  if (card) card.style.outline = todayFilter ? "2px solid #2f9e5f" : "";
+  var k = document.getElementById("today-k");
+  if (k) k.textContent = todayFilter ? "🧾 Ventas de hoy (viendo)" : "Ventas de hoy 👆";
+  var panel = document.getElementById("today-panel");
+  if (panel) panel.classList.toggle("hidden", !todayFilter);
+  showTab("sales");
+  renderSales();
+}
 function renderSales() {
   var body = document.getElementById("sales-body");
-  var list = state.sales.slice().reverse();
+  var list = state.sales.filter(function (s) { return !todayFilter || isTodaySale(s); }).slice().reverse();
+  if (todayFilter) {
+    var agg = {}, totCobrado = 0, hayItems = false;
+    state.sales.forEach(function (s) {
+      if (s.voided || !isTodaySale(s)) return;
+      totCobrado += Number(s.total) || 0;
+      s.items.forEach(function (it) {
+        hayItems = true;
+        if (!agg[it.name]) agg[it.name] = { name: it.name, qty: 0, amt: 0 };
+        agg[it.name].qty += it.qty; agg[it.name].amt += it.price * it.qty;
+      });
+    });
+    var trows = Object.keys(agg).map(function (kk) { var a = agg[kk]; return "<tr><td><strong>" + esc(a.name) + "</strong></td><td class='ctr'>" + a.qty + "</td><td class='num'>" + money(a.amt) + "</td></tr>"; }).join("");
+    var tl = document.getElementById("today-list");
+    if (tl) tl.innerHTML = hayItems ? "<table><thead><tr><th>Producto</th><th class='ctr'>Cant.</th><th class='num'>Monto</th></tr></thead><tbody>" + trows + "</tbody></table>" : "<p class='muted'>Todavía no hay ventas hoy.</p>";
+    var tt = document.getElementById("today-total");
+    if (tt) tt.textContent = hayItems ? ("Total cobrado hoy: " + money(totCobrado)) : "";
+  }
   document.getElementById("sales-empty").style.display = state.sales.length ? "none" : "block";
   body.innerHTML = list.map(function (s) {
     var detail = s.items.map(function (it) { return esc(it.name) + " x" + it.qty; }).join(", ");
@@ -495,6 +531,7 @@ function renderSales() {
       '<td class="num">' + money(s.total) + "</td><td>" + esc(s.pay) + "</td>" +
       '<td class="ctr">' + act + "</td></tr>";
   }).join("");
+  if (todayFilter && !list.length) body.innerHTML = "<tr><td colspan='6' style='text-align:center; padding:16px'>Sin ventas registradas hoy</td></tr>";
   renderSummary();
 }
 function findSale(id) { for (var i = 0; i < state.sales.length; i++) if (state.sales[i].id === id) return state.sales[i]; return null; }
