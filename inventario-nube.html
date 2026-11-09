@@ -157,7 +157,8 @@
         <div style="min-width:200px"><label>Forma de pago</label>
           <select id="pay-method"><option>Efectivo</option><option>Tarjeta</option><option>Transferencia</option></select>
         </div>
-        <div class="total-box">TOTAL: <span id="cart-total">$0,00</span></div>
+        <div style="min-width:150px"><label>Descuento ($)</label><input id="cart-discount" type="text" inputmode="decimal" placeholder="0,00" oninput="renderCart()"></div>
+        <div class="total-box"><div id="cart-subtotal" style="font-size:13px; font-weight:400"></div>TOTAL: <span id="cart-total">$0,00</span></div>
         <button class="btn" style="font-size:18px; padding:14px 28px" onclick="checkout()">COBRAR</button>
       </div>
     </div>
@@ -448,6 +449,14 @@ function cartTotal() {
   cart.forEach(function (c) { var p = prod(c.pid); if (p) t += p.price * c.qty; });
   return t;
 }
+function cartDiscount() {
+  var el = document.getElementById("cart-discount");
+  var d = el ? parseNum(el.value) : 0;
+  var sub = cartTotal();
+  if (d < 0) d = 0;
+  if (d > sub) d = sub;
+  return d;
+}
 function renderCart() {
   var body = document.getElementById("cart-body");
   document.getElementById("cart-empty").style.display = cart.length ? "none" : "block";
@@ -459,7 +468,10 @@ function renderCart() {
       '<td class="num">' + money(p.price * c.qty) + "</td>" +
       '<td class="ctr"><button class="iconbtn" onclick="setCartQty(\'' + p.id + '\',0)">🗑️</button></td></tr>';
   }).join("");
-  document.getElementById("cart-total").textContent = money(cartTotal());
+  var subT = cartTotal(), discT = cartDiscount();
+  document.getElementById("cart-total").textContent = money(subT - discT);
+  var sbEl = document.getElementById("cart-subtotal");
+  if (sbEl) sbEl.textContent = discT > 0 ? ("Subtotal " + money(subT) + " \u2212 descuento " + money(discT)) : "";
 }
 function checkout() {
   if (!cart.length) { alert("La venta está vacía. Añade al menos un producto."); return; }
@@ -473,10 +485,12 @@ function checkout() {
   }
   if (!items.length) { alert("La venta está vacía."); return; }
   items.forEach(function (it) { var p = prod(it.pid); if (p) p.stock -= it.qty; });
-  var sale = { id: uid(), num: state.nextSale++, date: new Date().toISOString(), items: items, total: total, pay: document.getElementById("pay-method").value, voided: false };
+  var disc = cartDiscount();
+  var sale = { id: uid(), num: state.nextSale++, date: new Date().toISOString(), items: items, subtotal: total, discount: disc, total: total - disc, pay: document.getElementById("pay-method").value, voided: false };
   state.sales.push(sale);
   save();
   cart = [];
+  var dEl = document.getElementById("cart-discount"); if (dEl) dEl.value = "";
   renderPos(); renderInv();
   showVoucher(sale);
 }
@@ -494,7 +508,7 @@ function ticketHTML(s) {
     "<hr><div>Comprobante N.º " + s.num + (s.voided ? " (ANULADO)" : "") + "</div>" +
     "<div>Fecha: " + fmtDate(s.date) + "</div>" +
     "<hr><table>" + lines + "</table>" +
-    "<hr><table><tr><td><strong>TOTAL</strong></td>" +
+    "<hr><table>" + (s.discount ? "<tr><td>Subtotal</td><td class=\"num\" style=\"text-align:right\">" + money(s.subtotal != null ? s.subtotal : s.total + s.discount) + "</td></tr><tr><td>Descuento</td><td class=\"num\" style=\"text-align:right\">\u2212" + money(s.discount) + "</td></tr>" : "") + "<tr><td><strong>TOTAL</strong></td>" +
     '<td class="num" style="text-align:right"><strong>' + money(s.total) + "</strong></td></tr></table>" +
     "<div>Forma de pago: " + esc(s.pay) + "</div>" +
     "<hr>" + '<div class="c">¡Gracias por su compra!</div>';
@@ -512,6 +526,7 @@ function renderSales() {
   document.getElementById("sales-empty").style.display = state.sales.length ? "none" : "block";
   body.innerHTML = list.map(function (s) {
     var detail = s.items.map(function (it) { return esc(it.name) + " x" + it.qty; }).join(", ");
+    if (s.discount) detail += " · Descuento: \u2212" + money(s.discount);
     var act = s.voided ? '<span class="badge out">ANULADA</span>'
       : '<button class="iconbtn" onclick="reprint(\'' + s.id + '\')">🖨 Reimprimir</button> <button class="iconbtn" onclick="voidSale(\'' + s.id + '\')">Anular</button>';
     return "<tr><td>" + s.num + "</td><td>" + fmtDate(s.date) + "</td><td>" + detail + "</td>" +
