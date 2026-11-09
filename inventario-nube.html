@@ -89,6 +89,7 @@
   <button id="tab-inv" class="active" onclick="showTab('inv')">📦 Inventario</button>
   <button id="tab-pos" onclick="showTab('pos')">💵 Cobrar</button>
   <button id="tab-sales" onclick="showTab('sales')">🧾 Ventas</button>
+  <button id="tab-users" class="hidden" onclick="showTab('users')">👥 Usuarios</button>
 </nav>
 <main>
   <section class="cards">
@@ -192,6 +193,30 @@
       <p class="muted" id="sales-empty">Todavía no hay ventas registradas.</p>
     </div>
   </section>
+  <!-- USUARIOS (solo administrador) -->
+  <section id="view-users" class="hidden">
+    <div class="panel">
+      <h2>Añadir trabajador</h2>
+      <p class="muted" style="margin-bottom:12px">Crea un usuario para cada trabajador. El trabajador solo puede <b>cobrar</b>: no ve ni puede editar el inventario ni el historial. Solo tú (cuenta principal) puedes editar el inventario.</p>
+      <div class="grid">
+        <div><label>Correo del trabajador</label><input id="u-email" type="email" placeholder="Ej: trabajador1@gmail.com"></div>
+        <div><label>Contraseña (mínimo 6 caracteres)</label><input id="u-pass" type="text" placeholder="La anotas y se la entregas al trabajador"></div>
+        <div><label>Permiso</label><select id="u-rol"><option value="vendedor">Vendedor — solo cobrar</option><option value="admin">Administrador — todo</option></select></div>
+      </div>
+      <div class="row" style="margin-top:12px">
+        <button class="btn" onclick="createWorker()">Crear usuario</button>
+        <span class="muted" id="u-msg"></span>
+      </div>
+    </div>
+    <div class="panel">
+      <h2>Usuarios con acceso</h2>
+      <table>
+        <thead><tr><th>Correo</th><th>Permiso</th><th class="ctr">Quitar acceso</th></tr></thead>
+        <tbody id="users-body"></tbody>
+      </table>
+      <p class="muted" style="margin-top:10px">Cuenta principal (tú): <b>electroalarmas878@gmail.com</b> — Administrador total, no se puede quitar.<br>“Quitar acceso” bloquea al instante el ingreso a los datos de ese usuario en todos los dispositivos.</p>
+    </div>
+  </section>
 </main>
 
 <!-- LOGIN NUBE -->
@@ -267,12 +292,13 @@ function todayStr() { var d = new Date(); return d.getFullYear() + "-" + (d.getM
 function fmtDate(iso) { var d = new Date(iso); return d.toLocaleDateString("es-EC") + " " + d.toLocaleTimeString("es-EC", { hour: "2-digit", minute: "2-digit" }); }
 
 function showTab(t) {
-  ["inv", "pos", "sales"].forEach(function (k) {
+  ["inv", "pos", "sales", "users"].forEach(function (k) {
     document.getElementById("view-" + k).classList.toggle("hidden", k !== t);
     document.getElementById("tab-" + k).classList.toggle("active", k === t);
   });
   if (t === "pos") renderPos();
   if (t === "sales") renderSales();
+  if (t === "users") renderUsers();
   renderSummary();
 }
 
@@ -776,6 +802,8 @@ document.getElementById("view-pos").addEventListener("click", function (ev) {
 
 
 /* ---------- NUBE (Firebase) ---------- */
+var OWNER_EMAIL = "electroalarmas878@gmail.com";
+var myRole = null, listenersOn = false, usersListenOn = false;
 var fbDb = null, fbAuth = null, cloudUser = null, cloudReady = false;
 var lastCloudP = {}, lastCloudS = {};
 var gotSnapP = false, gotSnapS = false;
@@ -797,16 +825,24 @@ function cloudInit() {
       cloudUser = user || null;
       var ov = document.getElementById("login-overlay");
       var lo = document.getElementById("logout-btn");
-      if (user) {
-        ov.classList.add("hidden"); lo.classList.remove("hidden");
-        cloudChip("☁ En línea · sincronizando…");
-        cloudListen();
-      } else {
-        cloudReady = false;
+      if (!user) {
+        cloudReady = false; myRole = null;
         lo.classList.add("hidden");
         ov.classList.remove("hidden");
         cloudChip("☁ Sin ingresar");
+        return;
       }
+      lo.classList.remove("hidden");
+      if (user.email === OWNER_EMAIL) { myRole = "admin"; enterCloudApp(); return; }
+      fbDb.collection("usuarios").doc(user.uid).onSnapshot(function (doc) {
+        if (!doc.exists) {
+          document.getElementById("login-msg").textContent = "⚠ Este usuario todavía no tiene acceso. El dueño debe crearlo desde su panel de Usuarios.";
+          fbAuth.signOut();
+          return;
+        }
+        myRole = doc.data().rol || "vendedor";
+        enterCloudApp();
+      }, function () { cloudChip("☁ Sin conexión · se sincroniza al volver"); });
     });
   } catch (e) { cloudChip("● Modo local (error de nube)"); }
 }
@@ -819,6 +855,22 @@ function cloudLogin() {
     .catch(function (err) { msg.textContent = "⚠ No se pudo ingresar. Revisa el correo y la contraseña."; });
 }
 function cloudLogout() { if (fbAuth) fbAuth.signOut(); }
+function enterCloudApp() {
+  document.getElementById("login-overlay").classList.add("hidden");
+  applyRole();
+  if (!listenersOn) { listenersOn = true; cloudListen(); }
+  if (myRole === "admin" && !usersListenOn) { usersListenOn = true; listenUsers(); }
+}
+function roleName() { return myRole === "admin" ? "Administrador" : "Vendedor"; }
+function chipSync() { cloudChip("☁ En línea · " + roleName() + " · sincronizado"); }
+function applyRole() {
+  var admin = myRole === "admin";
+  document.getElementById("tab-inv").classList.toggle("hidden", !admin);
+  document.getElementById("tab-sales").classList.toggle("hidden", !admin);
+  document.getElementById("tab-users").classList.toggle("hidden", !admin);
+  if (!admin) showTab("pos");
+  cloudChip("☁ En línea · " + roleName());
+}
 function cloudListen() {
   fbDb.collection("productos").onSnapshot(function (snap) {
     var arr = [];
@@ -827,7 +879,7 @@ function cloudListen() {
     state.products = arr;
     lastCloudP = {}; arr.forEach(function (p) { lastCloudP[p.id] = JSON.stringify(p); });
     cacheLocal(); cloudReady = true;
-    cloudChip("☁ En línea · datos sincronizados");
+    chipSync();
     if (first) maybeOfferMigration();
     renderAllViews();
   }, function () { cloudChip("☁ Sin conexión · se sincroniza al volver"); });
@@ -840,26 +892,39 @@ function cloudListen() {
     cacheLocal(); renderAllViews();
   }, function () {});
 }
+function diffFields(oldJson, obj) {
+  var old = {}; try { old = JSON.parse(oldJson || "{}"); } catch (e) {}
+  var diff = null;
+  Object.keys(obj).forEach(function (k) {
+    if (JSON.stringify(old[k]) !== JSON.stringify(obj[k])) { if (!diff) diff = {}; diff[k] = obj[k]; }
+  });
+  return diff;
+}
 function cloudPush() {
   if (!cloudReady || !fbDb) return;
   try {
     var batch = fbDb.batch(); var ops = 0;
+    var newLP = {}, newLS = {};
+    Object.keys(lastCloudP).forEach(function (k) { newLP[k] = lastCloudP[k]; });
+    Object.keys(lastCloudS).forEach(function (k) { newLS[k] = lastCloudS[k]; });
     var seenP = {};
     state.products.forEach(function (p) {
       seenP[p.id] = 1;
       var j = JSON.stringify(p);
-      if (lastCloudP[p.id] !== j) { batch.set(fbDb.collection("productos").doc(String(p.id)), p); lastCloudP[p.id] = j; ops++; }
+      if (newLP[p.id] === undefined) { batch.set(fbDb.collection("productos").doc(String(p.id)), p); newLP[p.id] = j; ops++; }
+      else if (newLP[p.id] !== j) { var d = diffFields(newLP[p.id], p); if (d) { batch.update(fbDb.collection("productos").doc(String(p.id)), d); newLP[p.id] = j; ops++; } }
     });
-    Object.keys(lastCloudP).forEach(function (id) { if (!seenP[id]) { batch.delete(fbDb.collection("productos").doc(String(id))); delete lastCloudP[id]; ops++; } });
+    Object.keys(newLP).forEach(function (id) { if (!seenP[id]) { batch.delete(fbDb.collection("productos").doc(String(id))); delete newLP[id]; ops++; } });
     var seenS = {};
     state.sales.forEach(function (v) {
       if (!v.id) return;
       seenS[v.id] = 1;
       var j = JSON.stringify(v);
-      if (lastCloudS[v.id] !== j) { batch.set(fbDb.collection("ventas").doc(String(v.id)), v); lastCloudS[v.id] = j; ops++; }
+      if (newLS[v.id] === undefined) { batch.set(fbDb.collection("ventas").doc(String(v.id)), v); newLS[v.id] = j; ops++; }
+      else if (newLS[v.id] !== j) { var d2 = diffFields(newLS[v.id], v); if (d2) { batch.update(fbDb.collection("ventas").doc(String(v.id)), d2); newLS[v.id] = j; ops++; } }
     });
-    Object.keys(lastCloudS).forEach(function (id) { if (!seenS[id]) { batch.delete(fbDb.collection("ventas").doc(String(id))); delete lastCloudS[id]; ops++; } });
-    if (ops) batch.commit().then(function () { cloudChip("☁ En línea · datos sincronizados"); })
+    Object.keys(newLS).forEach(function (id) { if (!seenS[id]) { batch.delete(fbDb.collection("ventas").doc(String(id))); delete newLS[id]; ops++; } });
+    if (ops) batch.commit().then(function () { lastCloudP = newLP; lastCloudS = newLS; chipSync(); })
       .catch(function () { cloudChip("☁ Sin conexión · se sincroniza al volver"); });
   } catch (e) {}
 }
@@ -890,6 +955,54 @@ function migrateLocal() {
       toast("✅ Datos subidos a la nube");
     }).catch(function () { toast("⚠ No se pudo subir. Revisa la conexión."); });
   } catch (e) {}
+}
+
+/* ---------- USUARIOS Y ROLES ---------- */
+var usersCache = [];
+function createWorker() {
+  var em = document.getElementById("u-email").value.trim().toLowerCase();
+  var pw = document.getElementById("u-pass").value;
+  var rol = document.getElementById("u-rol").value;
+  var msg = document.getElementById("u-msg");
+  if (!em || em.indexOf("@") < 1) { msg.textContent = "⚠ Escribe un correo válido."; return; }
+  if (!pw || pw.length < 6) { msg.textContent = "⚠ La contraseña debe tener al menos 6 caracteres."; return; }
+  msg.textContent = "Creando usuario…";
+  var secApp = null;
+  try { secApp = firebase.initializeApp(FIREBASE_CONFIG, "secundaria"); } catch (e) { try { secApp = firebase.app("secundaria"); } catch (e2) {} }
+  secApp.auth().createUserWithEmailAndPassword(em, pw).then(function (cred) {
+    return fbDb.collection("usuarios").doc(cred.user.uid).set({ email: em, rol: rol, creado: new Date().toISOString() });
+  }).then(function () {
+    msg.textContent = "✅ Usuario creado: " + em + " (" + (rol === "admin" ? "Administrador" : "Vendedor") + "). Ya puede ingresar en cualquier dispositivo.";
+    document.getElementById("u-email").value = ""; document.getElementById("u-pass").value = "";
+    return secApp.auth().signOut();
+  }).then(function () { return secApp.delete(); }).catch(function (err) {
+    var t = "⚠ No se pudo crear. ";
+    if (err && err.code === "auth/email-already-in-use") t += "Ese correo ya tiene una cuenta creada.";
+    else if (err && err.code === "auth/weak-password") t += "La contraseña es muy débil (mínimo 6 caracteres).";
+    else if (err && err.code === "auth/invalid-email") t += "El correo no es válido.";
+    else t += "Revisa la conexión e inténtalo de nuevo.";
+    msg.textContent = t;
+    try { secApp.delete(); } catch (e) {}
+  });
+}
+function listenUsers() {
+  fbDb.collection("usuarios").onSnapshot(function (snap) {
+    usersCache = [];
+    snap.forEach(function (doc) { var u = doc.data(); u.uid = doc.id; usersCache.push(u); });
+    if (!document.getElementById("view-users").classList.contains("hidden")) renderUsers();
+  }, function () {});
+}
+function renderUsers() {
+  var tb = document.getElementById("users-body"); if (!tb) return;
+  tb.innerHTML = usersCache.map(function (u) {
+    return "<tr><td>" + esc(u.email || "") + "</td><td>" + (u.rol === "admin" ? "Administrador — todo" : "Vendedor — solo cobrar") + "</td>" +
+      "<td class='ctr'><button class='btn danger' onclick='removeUser(\"" + u.uid + "\", \"" + esc(u.email || "") + "\")'>Quitar acceso</button></td></tr>";
+  }).join("");
+}
+function removeUser(uid, email) {
+  if (!confirm("¿Quitar el acceso a " + email + "? Ya no podrá ver ni vender con los datos de la tienda.")) return;
+  fbDb.collection("usuarios").doc(uid).delete().then(function () { toast("✅ Acceso retirado a " + email); })
+    .catch(function () { toast("⚠ No se pudo quitar el acceso."); });
 }
 
 /* ---------- INICIO ---------- */
