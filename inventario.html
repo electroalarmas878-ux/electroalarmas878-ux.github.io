@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Inventario — Electro Alarmas</title>
+<link rel="icon" type="image/png" href="favicon.png">
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   :root {
@@ -161,7 +162,8 @@
       <div class="panel">
       <h2>Armar la venta</h2>
       <div class="row" style="margin-bottom:12px">
-        <div class="grow"><label>Buscar producto para vender</label><input id="pos-search" placeholder="Nombre o código..." oninput="renderPosList()"></div>
+        <div class="grow"><label>Buscar producto para vender por nombre</label><input id="pos-search" placeholder="Escribe el nombre del producto..." oninput="renderPosList()"></div>
+        <div style="min-width:210px"><label>Buscar por categoría</label><select id="pos-cat" onchange="renderPosList()"><option value="">Todas las categorías</option></select></div>
       </div>
       <div class="row" style="margin-bottom:6px">
         <div class="grow"><label>Escaneo por código de barras (pistola / lector USB)</label><input id="scan-input" placeholder="Escanea el código aquí y el producto se añade solo a la venta..."></div>
@@ -378,12 +380,32 @@ document.getElementById("prod-form").addEventListener("submit", function (ev) {
 
 /* ---------- COBRAR ---------- */
 function renderPos() { renderPosList(); renderCart(); setTimeout(function () { var s = document.getElementById("scan-input"); if (s) s.focus(); }, 50); }
+function fillPosCats() {
+  var sel = document.getElementById("pos-cat"); if (!sel) return;
+  var cats = [];
+  state.products.forEach(function (p) { var c = (p.cat || "").trim(); if (c && cats.indexOf(c) < 0) cats.push(c); });
+  cats.sort();
+  var sig = cats.join("|");
+  if (sel.getAttribute("data-sig") === sig) return;
+  var cur = sel.value;
+  sel.innerHTML = '<option value="">Todas las categorías</option>' + cats.map(function (c) { return '<option value="' + esc(c) + '">' + esc(c) + "</option>"; }).join("");
+  sel.setAttribute("data-sig", sig);
+  if (cur && cats.indexOf(cur) >= 0) sel.value = cur;
+}
 function renderPosList() {
+  fillPosCats();
   var q = (document.getElementById("pos-search").value || "").toLowerCase();
+  var catSel = document.getElementById("pos-cat");
+  var cat = catSel ? catSel.value : "";
   var body = document.getElementById("pos-body");
   var rows = state.products.filter(function (p) {
+    if (cat && (p.cat || "").trim() !== cat) return false;
     return !q || (p.name + " " + (p.code || "")).toLowerCase().indexOf(q) >= 0;
   });
+  if (!rows.length) {
+    body.innerHTML = '<tr><td colspan="4" class="muted" style="text-align:center;padding:14px">Sin resultados para esa búsqueda.</td></tr>';
+    return;
+  }
   body.innerHTML = rows.map(function (p) {
     var dis = p.stock <= 0 ? " disabled" : "";
     return "<tr><td><strong>" + esc(p.name) + "</strong>" + (p.code ? ' <span class="muted">' + esc(p.code) + "</span>" : "") + "</td>" +
