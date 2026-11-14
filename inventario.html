@@ -383,7 +383,7 @@ function renderPos() { renderPosList(); renderCart(); setTimeout(function () { v
 function fillPosCats() {
   var sel = document.getElementById("pos-cat"); if (!sel) return;
   var cats = [];
-  state.products.forEach(function (p) { var c = (p.cat || "").trim(); if (c && cats.indexOf(c) < 0) cats.push(c); });
+  state.products.forEach(function (p) { var c = (p.cat || p.category || "").trim(); if (c && cats.indexOf(c) < 0) cats.push(c); });
   cats.sort();
   var sig = cats.join("|");
   if (sel.getAttribute("data-sig") === sig) return;
@@ -399,7 +399,7 @@ function renderPosList() {
   var cat = catSel ? catSel.value : "";
   var body = document.getElementById("pos-body");
   var rows = state.products.filter(function (p) {
-    if (cat && (p.cat || "").trim() !== cat) return false;
+    if (cat && (p.cat || p.category || "").trim() !== cat) return false;
     return !q || (p.name + " " + (p.code || "")).toLowerCase().indexOf(q) >= 0;
   });
   if (!rows.length) {
