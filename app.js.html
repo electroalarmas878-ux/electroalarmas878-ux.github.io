@@ -66,16 +66,16 @@
   .ticket hr { border: none; border-top: 2px solid #000; margin: 8px 0; }
   .ticket table { font-size: 13px; }
   .ticket th, .ticket td { border: none; padding: 3px 2px; color: #000; text-transform: none; letter-spacing: 0; }
-  /* Etiqueta de precio 80 x 20 mm */
-  .label-sheet { background: #fff; color: #000; width: 80mm; height: 20mm; padding: 1.4mm 2mm; display: flex; align-items: center; gap: 2mm; overflow: hidden; font-family: Arial, sans-serif; border: 1px dashed #bbb; }
-  .label-sheet .l-main { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; justify-content: center; gap: 0.5mm; }
-  .label-sheet .l-name { font-weight: 800; font-size: 11.5px; line-height: 1.12; max-height: 2.24em; overflow: hidden; text-transform: uppercase; }
-  .label-sheet .l-barcode svg { width: 100%; height: 5.8mm; display: block; }
-  .label-sheet .l-code { font-family: "Courier New", monospace; font-size: 8.5px; font-weight: 700; letter-spacing: 1.5px; }
-  .label-sheet .l-side { flex: 0 0 auto; text-align: right; display: flex; flex-direction: column; justify-content: center; gap: 0.5mm; max-width: 27mm; }
-  .label-sheet .l-brand { font-size: 6.8px; font-weight: 800; letter-spacing: .6px; }
-  .label-sheet .l-price { font-size: 19px; font-weight: 800; line-height: 1; }
-  .label-sheet .l-cat { font-size: 7.5px; color: #333; text-transform: uppercase; }
+  /* Etiqueta de precio 80 x 40 mm */
+  .label-sheet { background: #fff; color: #000; width: 80mm; height: 40mm; padding: 2.5mm 2mm; display: flex; align-items: center; gap: 2mm; overflow: hidden; font-family: Arial, sans-serif; border: 1px dashed #bbb; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .label-sheet .l-main { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; justify-content: center; gap: 1mm; }
+  .label-sheet .l-name { font-weight: 900; font-size: 15px; line-height: 1.15; max-height: 2.3em; overflow: hidden; text-transform: uppercase; }
+  .label-sheet .l-barcode svg { width: 100%; height: 12mm; display: block; }
+  .label-sheet .l-code { font-family: "Courier New", monospace; font-size: 11.5px; font-weight: 800; letter-spacing: 2px; }
+  .label-sheet .l-side { flex: 0 0 auto; text-align: right; display: flex; flex-direction: column; justify-content: center; gap: 1mm; max-width: 27mm; }
+  .label-sheet .l-brand { font-size: 9.5px; font-weight: 900; letter-spacing: .6px; }
+  .label-sheet .l-price { font-size: 30px; font-weight: 900; line-height: 1; }
+  .label-sheet .l-cat { font-size: 10px; font-weight: 700; color: #000; text-transform: uppercase; }
   @media print {
     @page { size: 80mm auto; margin: 0; }
     header, nav, main, .toast, #storage-warn, #migrate-banner, #login-overlay { display: none !important; }
@@ -227,7 +227,7 @@
   </div>
 </div>
 
-<!-- MODAL ETIQUETA 80x20 -->
+<!-- MODAL ETIQUETA 80x40 -->
 <div id="label-overlay" class="overlay hidden">
   <div class="modal" style="width:auto; max-width:95vw">
     <div id="label-area"></div>
@@ -236,7 +236,7 @@
       <span style="color:#333; font-size:14px">Copias <input id="label-copies" type="number" min="1" max="50" value="1" style="width:64px; display:inline-block; background:#fff; color:#111; border:1px solid #ccc; border-radius:6px; padding:5px 6px" onchange="renderLabelCopies()"></span>
       <button class="btn sec" onclick="closeLabel()">Cerrar</button>
     </div>
-    <p class="muted label-note" style="margin-top:8px; color:#555">Etiqueta de 80 × 20 mm para tu impresora de 80 mm. En el diálogo de impresión elige tu impresora térmica.</p>
+    <p class="muted label-note" style="margin-top:8px; color:#555">Etiqueta de 80 × 40 mm para tu impresora de 80 mm. En el diálogo de impresión elige tu impresora térmica.</p>
   </div>
 </div>
 
@@ -538,7 +538,7 @@ function showVoucher(sale) {
 }
 function closeVoucher() { document.getElementById("voucher-overlay").classList.add("hidden"); }
 
-/* ---------- ETIQUETA 80x20 mm ---------- */
+/* ---------- ETIQUETA 80x40 mm ---------- */
 var labelPid = null;
 var C39 = { "0": "nnnwwnwnn", "1": "wnnwnnnnw", "2": "nnwwnnnnw", "3": "wnwwnnnnn", "4": "nnnwwnnnw", "5": "wnnwwnnnn", "6": "nnwwwnnnn", "7": "nnnwnnwnw", "8": "wnnwnnwnn", "9": "nnwwnnwnn", "A": "wnnnnwnnw", "B": "nnwnnwnnw", "C": "wnwnnwnnn", "D": "nnnnwwnnw", "E": "wnnnwwnnn", "F": "nnwnwwnnn", "G": "nnnnnwwnw", "H": "wnnnnwwnn", "I": "nnwnnwwnn", "J": "nnnnwwwnn", "K": "wnnnnnnww", "L": "nnwnnnnww", "M": "wnwnnnnwn", "N": "nnnnwnnww", "O": "wnnnwnnwn", "P": "nnwnwnnwn", "Q": "nnnnnnwww", "R": "wnnnnnwwn", "S": "nnwnnnwwn", "T": "nnnnwnwwn", "U": "wwnnnnnnw", "V": "nwwnnnnnw", "W": "wwwnnnnnn", "X": "nwnnwnnnw", "Y": "wwnnwnnnn", "Z": "nwwnwnnnn", "-": "nwnnnnwnw", ".": "wwnnnnwnn", " ": "nwwnnnwnn", "$": "nwnwnwnnn", "%": "nnnwnwnwn", "*": "nwnnwnwnn", "+": "nwnnnwnwn", "/": "nwnwnnnwn" };
 function barcodeSVG(code) {
