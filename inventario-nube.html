@@ -66,6 +66,16 @@
   .ticket hr { border: none; border-top: 2px solid #000; margin: 8px 0; }
   .ticket table { font-size: 13px; }
   .ticket th, .ticket td { border: none; padding: 3px 2px; color: #000; text-transform: none; letter-spacing: 0; }
+  /* Etiqueta de precio 80 x 20 mm */
+  .label-sheet { background: #fff; color: #000; width: 80mm; height: 20mm; padding: 1.4mm 2mm; display: flex; align-items: center; gap: 2mm; overflow: hidden; font-family: Arial, sans-serif; border: 1px dashed #bbb; }
+  .label-sheet .l-main { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; justify-content: center; gap: 0.5mm; }
+  .label-sheet .l-name { font-weight: 800; font-size: 11.5px; line-height: 1.12; max-height: 2.24em; overflow: hidden; text-transform: uppercase; }
+  .label-sheet .l-barcode svg { width: 100%; height: 5.8mm; display: block; }
+  .label-sheet .l-code { font-family: "Courier New", monospace; font-size: 8.5px; font-weight: 700; letter-spacing: 1.5px; }
+  .label-sheet .l-side { flex: 0 0 auto; text-align: right; display: flex; flex-direction: column; justify-content: center; gap: 0.5mm; max-width: 27mm; }
+  .label-sheet .l-brand { font-size: 6.8px; font-weight: 800; letter-spacing: .6px; }
+  .label-sheet .l-price { font-size: 19px; font-weight: 800; line-height: 1; }
+  .label-sheet .l-cat { font-size: 7.5px; color: #333; text-transform: uppercase; }
   @media print {
     @page { size: 80mm auto; margin: 0; }
     header, nav, main, .toast, #storage-warn, #migrate-banner, #login-overlay { display: none !important; }
@@ -74,6 +84,13 @@
     #voucher-overlay .modal { box-shadow: none; width: 80mm; max-width: 80mm; padding: 0; margin: 0; border-radius: 0; }
     #voucher-overlay .actions { display: none !important; }
     #print-area { width: 80mm; padding: 2mm 3mm; }
+    body:not(.print-label) #label-overlay { display: none !important; }
+    body.print-label #voucher-overlay { display: none !important; }
+    body.print-label #label-overlay { position: static !important; display: block !important; background: none; padding: 0; overflow: visible; height: auto; }
+    body.print-label #label-overlay .modal { box-shadow: none; width: 80mm; max-width: 80mm; padding: 0; margin: 0; border-radius: 0; }
+    body.print-label #label-overlay .actions, body.print-label #label-overlay .label-note { display: none !important; }
+    body.print-label .label-sheet { border: none; page-break-after: always; }
+    body.print-label .label-sheet:last-child { page-break-after: auto; }
   }
 </style>
 </head>
@@ -251,6 +268,19 @@
   </div>
 </div>
 
+<!-- MODAL ETIQUETA 80x20 -->
+<div id="label-overlay" class="overlay hidden">
+  <div class="modal" style="width:auto; max-width:95vw">
+    <div id="label-area"></div>
+    <div class="actions" style="align-items:center">
+      <button class="btn" onclick="window.print()">🖨 Imprimir etiqueta</button>
+      <span style="color:#333; font-size:14px">Copias <input id="label-copies" type="number" min="1" max="50" value="1" style="width:64px; display:inline-block; background:#fff; color:#111; border:1px solid #ccc; border-radius:6px; padding:5px 6px" onchange="renderLabelCopies()"></span>
+      <button class="btn sec" onclick="closeLabel()">Cerrar</button>
+    </div>
+    <p class="muted label-note" style="margin-top:8px; color:#555">Etiqueta de 80 × 20 mm para tu impresora de 80 mm. En el diálogo de impresión elige tu impresora térmica.</p>
+  </div>
+</div>
+
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
@@ -356,7 +386,7 @@ function renderInv() {
       '<td class="num">' + money(p.price) + "</td>" +
       '<td class="ctr"><button class="iconbtn" onclick="adjStock(\'' + p.id + '\',-1)">−</button> <strong>' + p.stock + '</strong> <button class="iconbtn" onclick="adjStock(\'' + p.id + '\',1)">+</button></td>' +
       '<td class="ctr">' + stockBadge(p) + "</td>" +
-      '<td class="ctr"><button class="iconbtn" title="Editar" onclick="editProd(\'' + p.id + '\')">✏️</button> <button class="iconbtn" title="Eliminar" onclick="delProd(\'' + p.id + '\')">🗑️</button></td>' +
+      '<td class="ctr"><button class="iconbtn" title="Imprimir etiqueta" onclick="printLabel(\'' + p.id + '\')">🏷️</button> <button class="iconbtn" title="Editar" onclick="editProd(\'' + p.id + '\')">✏️</button> <button class="iconbtn" title="Eliminar" onclick="delProd(\'' + p.id + '\')">🗑️</button></td>' +
       "</tr>";
   }).join("");
   if (alertFilter && !rows.length) body.innerHTML = "<tr><td colspan='8' style='text-align:center; padding:16px'>Sin productos en alerta que coincidan 🎉</td></tr>";
@@ -565,6 +595,57 @@ function showVoucher(sale) {
   document.getElementById("voucher-overlay").classList.remove("hidden");
 }
 function closeVoucher() { document.getElementById("voucher-overlay").classList.add("hidden"); }
+
+/* ---------- ETIQUETA 80x20 mm ---------- */
+var labelPid = null;
+var C39 = { "0": "nnnwwnwnn", "1": "wnnwnnnnw", "2": "nnwwnnnnw", "3": "wnwwnnnnn", "4": "nnnwwnnnw", "5": "wnnwwnnnn", "6": "nnwwwnnnn", "7": "nnnwnnwnw", "8": "wnnwnnwnn", "9": "nnwwnnwnn", "A": "wnnnnwnnw", "B": "nnwnnwnnw", "C": "wnwnnwnnn", "D": "nnnnwwnnw", "E": "wnnnwwnnn", "F": "nnwnwwnnn", "G": "nnnnnwwnw", "H": "wnnnnwwnn", "I": "nnwnnwwnn", "J": "nnnnwwwnn", "K": "wnnnnnnww", "L": "nnwnnnnww", "M": "wnwnnnnwn", "N": "nnnnwnnww", "O": "wnnnwnnwn", "P": "nnwnwnnwn", "Q": "nnnnnnwww", "R": "wnnnnnwwn", "S": "nnwnnnwwn", "T": "nnnnwnwwn", "U": "wwnnnnnnw", "V": "nwwnnnnnw", "W": "wwwnnnnnn", "X": "nwnnwnnnw", "Y": "wwnnwnnnn", "Z": "nwwnwnnnn", "-": "nwnnnnwnw", ".": "wwnnnnwnn", " ": "nwwnnnwnn", "$": "nwnwnwnnn", "%": "nnnwnwnwn", "*": "nwnnwnwnn", "+": "nwnnnwnwn", "/": "nwnwnnnwn" };
+function barcodeSVG(code) {
+  var s = "*" + code + "*";
+  var x = 0, rects = "", i, j, pat, w;
+  for (i = 0; i < s.length; i++) {
+    pat = C39[s[i]];
+    if (!pat) return "";
+    for (j = 0; j < 9; j++) {
+      w = pat[j] === "w" ? 2.1 : 1;
+      if (j % 2 === 0) rects += '<rect x="' + (Math.round(x * 10) / 10) + '" y="0" width="' + w + '" height="40"></rect>';
+      x += w;
+    }
+    x += 1;
+  }
+  return '<svg viewBox="0 0 ' + (Math.round(x * 10) / 10) + ' 40" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">' + rects + "</svg>";
+}
+function labelHTML(p) {
+  var code = (p.code || "").trim().toUpperCase();
+  var svg = code ? barcodeSVG(code) : "";
+  var bc = code
+    ? (svg ? '<div class="l-barcode">' + svg + "</div>" : "") + '<div class="l-code">' + esc(code) + "</div>"
+    : '<div class="l-code">SIN CÓDIGO</div>';
+  return '<div class="label-sheet"><div class="l-main"><div class="l-name">' + esc(p.name) + "</div>" + bc + "</div>" +
+    '<div class="l-side"><div class="l-brand">ELECTRO ALARMAS</div><div class="l-price">' + money(p.price) + "</div>" +
+    ((p.cat || p.category) ? '<div class="l-cat">' + esc(p.cat || p.category) + "</div>" : "") + "</div></div>";
+}
+function renderLabelCopies() {
+  var p = labelPid ? prod(labelPid) : null; if (!p) return;
+  var n = parseInt(document.getElementById("label-copies").value, 10) || 1;
+  n = Math.min(50, Math.max(1, n));
+  var html = "";
+  for (var i = 0; i < n; i++) html += labelHTML(p);
+  document.getElementById("label-area").innerHTML = html;
+}
+function printLabel(id) {
+  var p = prod(id); if (!p) return;
+  labelPid = id;
+  document.getElementById("label-copies").value = 1;
+  renderLabelCopies();
+  document.getElementById("label-overlay").classList.remove("hidden");
+  document.body.classList.add("print-label");
+}
+function closeLabel() {
+  document.getElementById("label-overlay").classList.add("hidden");
+  document.body.classList.remove("print-label");
+  labelPid = null;
+}
+window.addEventListener("afterprint", function () { document.body.classList.remove("print-label"); });
 
 /* ---------- VENTAS ---------- */
 var todayFilter = false;
